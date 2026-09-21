@@ -68,7 +68,7 @@ const CONFIG = {
   itemsUrl: "items.json",              // label-free items (built by build_items.py)
   itemsPerCellPerBlock: 5,             // 5 x 4 cells = 20 per block
   minCurriculumSeconds: 60,
-  curriculumPdfUrl: "curriculum.pdf",
+  curriculumPdfUrl: "curriculum (3).pdf",
   collectReason: true,
   collectHighlight: true,
   collectCategories: true,             // structured cue-tagging checkboxes
@@ -254,7 +254,7 @@ function renderQuestion(){
     <div class="progress"><div></div></div>
     <div class="muted">Question ${STATE.idx+1} of ${total}</div>
     <div class="card">
-      ${CONFIG.collectHighlight?`<div class="legend">Optional — tap a sentence to mark it:
+      ${CONFIG.collectHighlight?`<div class="legend">Optionally you can tap a sentence to mark it:
         one tap <b class="ai">AI-like</b>, two taps <b class="hu">human-like</b>, three taps clears.</div>`:''}
       <div class="passage" id="passage">${sents.map((s,i)=>`<span class="sent" data-i="${i}">${esc(s)}</span> `).join('')}</div>
       <div class="q">Who wrote this passage?</div>
