@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-Text Detection Study</title>
+<style>
+  :root{ --ink:#1a1a1a; --muted:#5f6368; --line:#d9dce1; --bg:#f7f7f5;
+         --navy:#1f3a5f; --ai:#c0392b; --hu:#2e8b57; --aibg:#fdecec; --hubg:#eaf6ee; }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);
+       background:var(--bg);margin:0;line-height:1.55}
+  .wrap{max-width:760px;margin:0 auto;padding:26px 18px 60px}
+  h1{font-size:22px;margin:0 0 6px} h2{font-size:18px;color:var(--navy)}
+  .sub{color:var(--muted);font-size:14px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px;margin:16px 0;
+        box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .progress{height:6px;background:#e6e8ec;border-radius:4px;overflow:hidden;margin:0 0 14px}
+  .progress > div{height:100%;background:var(--navy);width:0%}
+  .passage{font-size:16px;line-height:1.7;border:1px solid var(--line);border-radius:8px;
+           padding:14px 16px;background:#fff;margin:6px 0 4px}
+  .sent{cursor:pointer;border-radius:3px;padding:0 1px;transition:background .1s}
+  .sent.ai{background:var(--aibg);box-shadow:inset 0 -2px 0 var(--ai)}
+  .sent.hu{background:var(--hubg);box-shadow:inset 0 -2px 0 var(--hu)}
+  .legend{font-size:12px;color:var(--muted);margin:2px 0 14px}
+  .legend b.ai{color:var(--ai)} .legend b.hu{color:var(--hu)}
+  .q{font-weight:600;margin:16px 0 8px}
+  .choices{display:flex;gap:10px;flex-wrap:wrap}
+  .choice{flex:1;min-width:120px;text-align:center;padding:12px;border:1.5px solid var(--line);
+          border-radius:8px;cursor:pointer;background:#fff;font-weight:600}
+  .choice.sel-hu{border-color:var(--hu);background:var(--hubg)}
+  .choice.sel-ai{border-color:var(--ai);background:var(--aibg)}
+  .conf{display:flex;gap:8px;margin-top:8px}
+  .conf button{flex:1;padding:10px;border:1.5px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font-weight:600}
+  .conf button.sel{border-color:var(--navy);background:#eef2f8;color:var(--navy)}
+  .conf-ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+  .cats{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .cat{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1.5px solid var(--line);
+       border-radius:8px;cursor:pointer;font-size:14px;background:#fff;user-select:none}
+  .cat.sel{border-color:var(--navy);background:#eef2f8}
+  .cat .box{width:16px;height:16px;border:1.6px solid #9aa0a6;border-radius:4px;flex:0 0 auto;
+       display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff}
+  .cat.sel .box{background:var(--navy);border-color:var(--navy)}
+  textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;margin-top:6px;resize:vertical}
+  label.blk{display:block;margin:10px 0 4px;font-weight:600}
+  select,input[type=text],input[type=email]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  .btn{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:12px 20px;font-size:15px;
+       font-weight:600;cursor:pointer;margin-top:16px}
+  .btn:disabled{background:#aeb6c2;cursor:not-allowed}
+  .btn.secondary{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}
+  .muted{color:var(--muted);font-size:13px}
+  .pid{font-family:monospace;background:#eef2f8;padding:2px 6px;border-radius:4px}
+  iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px}
+  .hidden{display:none}
+  .err{color:var(--ai);font-size:13px;margin-top:8px}
+  .privacy{font-size:12px;color:var(--muted);margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+/* =========================================================================
+   CONFIG
+   ========================================================================= */
+const CONFIG = {
+  endpoint: "https://script.google.com/macros/s/AKfycbx98kaGqq5OiY3B7y69qA6Ti-3ghbf7akxrg5yeabxn30n-ELtkgLmA-x-TbIEmrsbNXg/exec",                        // Apps Script Web App URL ("" = download-only)
+  itemsUrl: "items.json",              // label-free items (built by build_items.py)
+  itemsPerCellPerBlock: 5,             // 5 x 4 cells = 20 per block
+  minCurriculumSeconds: 60,
+  curriculumPdfUrl: "curriculum.pdf",
+  collectReason: true,
+  collectHighlight: true,
+  collectCategories: true,             // structured cue-tagging checkboxes
+  categoriesPhase: "post",             // "post" (default), "pre", or "both"
+  logFocusLoss: true,                  // count when a participant leaves the test tab
+  storageKey: "aitext_study_v3"
+};
+
+// The five taught cue families (must match the curriculum sections).
+const CATEGORIES = [
+  { key:"vocab",      label:"Words & phrases used by AI" },
+  { key:"rhythm",     label:"Rhythm & sentence structure" },
+  { key:"substance",  label:"Substance (vague / hollow content)" },
+  { key:"tone",       label:"Tone & voice" },
+  { key:"formatting", label:"Formatting clues" }
+];
+function categoriesOnThisPhase(){
+  return CONFIG.collectCategories &&
+    (CONFIG.categoriesPhase==="both" || CONFIG.categoriesPhase===STATE.phase);
+}
+
+/* =========================================================================
+   Helpers.  ITEMS is loaded from items.json at startup: { A:[...], B:[...] }
+   where each item = { token, cell, src, text }  — NO labels/answers.
+   ========================================================================= */
+const app = document.getElementById('app');
+const params = new URLSearchParams(location.search);
+let ITEMS = null;
+let awayQ = 0;              // times the tab was hidden during the CURRENT question
+let focusListenerAttached = false;
+function attachFocusLogger(){
+  if(focusListenerAttached || !CONFIG.logFocusLoss) return;
+  focusListenerAttached = true;
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){ awayQ++; if(STATE){ STATE.awayTotal=(STATE.awayTotal||0)+1; save(); } }
+  });
+}
+
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function sampleN(a,n){ return shuffle(a).slice(0,n); }
+function splitSentences(t){ return (t.match(/[^.!?]+[.!?]*/g)||[t]).map(s=>s.trim()).filter(Boolean); }
+function esc(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function setProgress(p){ const el=document.querySelector('.progress>div'); if(el) el.style.width=p+'%'; }
+
+async function loadItems(){
+  const res = await fetch(CONFIG.itemsUrl, {cache:'no-store'});
+  if(!res.ok) throw new Error('items fetch failed');
+  const data = await res.json();
+  if(!data.A || !data.B) throw new Error('items.json missing A/B pools');
+  return data;
+}
+
+// Draw a balanced block from a pool: group items by opaque cell tag, pick 5 from
+// each cell, excluding any item whose source tag is in `excludeSrc`.
+function drawBlock(poolKey, phase, excludeSrc){
+  const exclude = excludeSrc || new Set();
+  const byCell = {};
+  ITEMS[poolKey].forEach(it=>{ (byCell[it.cell]=byCell[it.cell]||[]).push(it); });
+  const out=[];
+  Object.keys(byCell).forEach(cellTag=>{
+    const avail = byCell[cellTag].filter(it=> !exclude.has(it.src));
+    sampleN(avail, CONFIG.itemsPerCellPerBlock).forEach(it=> out.push({...it, pool:poolKey}));
+  });
+  return shuffle(out).map((it,i)=>({ ...it, phase, presentation_order:i+1 }));
+}
+
+/* =========================================================================
+   State + persistence
+   ========================================================================= */
+let STATE = null;
+
+function freshState(){
+  const group = (params.get('g')==='A'||params.get('g')==='B') ? params.get('g')
+               : (Math.random()<0.5 ? 'A':'B');
+  const prePool  = group==='A' ? 'A' : 'B';
+  const postPool = group==='A' ? 'B' : 'A';
+  const preItems  = drawBlock(prePool,'pre');
+  const usedSrc   = new Set(preItems.map(it => it.src));   // no source article twice
+  const postItems = drawBlock(postPool,'post', usedSrc);
+  return {
+    pid: params.get('pid') || ('P'+Math.random().toString(36).slice(2,8).toUpperCase()),
+    name:'', email:'', ai_usage:null, consent:false,
+    group, prePool, postPool, preItems, postItems,
+    phase:'intake', idx:0, responses:[],
+    curriculumMs:0, startedAt:new Date().toISOString()
+  };
+}
+function save(){ try{ localStorage.setItem(CONFIG.storageKey, JSON.stringify(STATE)); }catch(e){} }
+function clearSaved(){ try{ localStorage.removeItem(CONFIG.storageKey); }catch(e){} }
+function loadSaved(){ try{ const s=localStorage.getItem(CONFIG.storageKey); return s?JSON.parse(s):null; }catch(e){ return null; } }
+
+/* =========================================================================
+   Screens
+   ========================================================================= */
+function screenLoadError(){
+  app.innerHTML = `<div class="card"><h2>Couldn't load the questions</h2>
+    <p>The item file (<code>${CONFIG.itemsUrl}</code>) didn't load. If you're opening this
+       file directly from disk, serve it over http instead — e.g. in this folder run
+       <code>python3 -m http.server</code> and open <code>http://localhost:8000</code>.</p>
+    <button class="btn" id="retry">Retry</button></div>`;
+  document.getElementById('retry').onclick=init;
+}
+
+function screenWelcome(existing){
+  app.innerHTML = `
+    <h1>Can people spot AI-written text?</h1>
+    <p class="sub">A short research activity: a set of questions, a brief guide to read,
+       then another set of questions. Roughly 60 minutes.</p>
+    <div class="card">
+      <h2>Welcome back</h2>
+      <p>We found a session in progress on this device
+         (ID <span class="pid">${existing.pid}</span>, ${existing.responses.length} answers saved).</p>
+      <p class="muted">Resume continues from your next unanswered question — you can't change earlier answers.</p>
+      <button class="btn" id="resume">Resume where I left off</button>
+      <button class="btn secondary" id="fresh">Start over</button>
+    </div>`;
+  document.getElementById('resume').onclick=()=>{ STATE=existing; route(); };
+  document.getElementById('fresh').onclick=async ()=>{
+    clearSaved();
+    try{ if(!ITEMS) ITEMS=await loadItems(); }catch(e){ return screenLoadError(); }
+    STATE=freshState(); save(); screenIntake();
+  };
+}
+
+function screenIntake(){
+  app.innerHTML = `
+    <h1>Can people spot AI-written text?</h1>
+    <p class="sub">A short research activity: a set of questions, a brief guide to read,
+       then another set of questions. Roughly 60 minutes.</p>
+    <div class="card">
+      <p>Your anonymous ID: <span class="pid">${STATE.pid}</span></p>
+      <label class="blk">Name</label>
+      <input type="text" id="name" placeholder="Your name">
+      <label class="blk">Email</label>
+      <input type="email" id="email" placeholder="you@example.com">
+      <div class="muted">We use your email only to invite you to a short follow-up test in two weeks.</div>
+      <label class="blk" style="margin-top:12px">How often do you use AI writing tools (ChatGPT, Claude, Gemini, etc.)?</label>
+      <select id="usage">
+        <option value="">— select —</option>
+        <option>Daily</option><option>A few times a week</option>
+        <option>A few times a month</option><option>Rarely</option><option>Never</option>
+      </select>
+      <label class="blk" style="margin-top:14px">
+        <input type="checkbox" id="consent"> I agree to take part and to my responses being used
+        for this research.
+      </label>
+      <div class="err hidden" id="err">Please fill name, a valid email, the usage question, and tick consent.</div>
+      <button class="btn" id="go" disabled>Start</button>
+      <div class="privacy">Your name and email are used solely to arrange the follow-up test and are not shared.
+        For data quality, we also record when you switch away from the test tab during the questions.</div>
+    </div>`;
+  const name=document.getElementById('name'), email=document.getElementById('email'),
+        usage=document.getElementById('usage'), consent=document.getElementById('consent'),
+        go=document.getElementById('go');
+  const okEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  function chk(){ go.disabled = !(name.value.trim() && okEmail(email.value.trim()) && usage.value && consent.checked); }
+  [name,email,usage,consent].forEach(el=>{ el.oninput=chk; el.onchange=chk; });
+  go.onclick=()=>{ STATE.name=name.value.trim(); STATE.email=email.value.trim();
+                   STATE.ai_usage=usage.value; STATE.consent=true; STATE.phase='pre'; STATE.idx=0;
+                   save(); screenBlockIntro(); };
+}
+
+function screenBlockIntro(){
+  const first = STATE.phase==='pre';
+  app.innerHTML = `
+    <div class="card">
+      <h2>${first?'Part 1 of 3 — First set of questions':'Part 3 of 3 — Second set of questions'}</h2>
+      <p>You'll see 20 short passages, one at a time. For each, decide whether it was written by a
+         <b>human</b> or by <b>AI</b>, and how confident you are.</p>
+      ${CONFIG.collectHighlight?`<p class="muted">Optionally, tap sentences that feel AI-like or human-like.</p>`:''}
+      <p class="muted">You can't go back to a previous question, so answer with your first judgement.</p>
+      <button class="btn" id="begin">Begin</button>
+    </div>`;
+  document.getElementById('begin').onclick=()=>renderQuestion();
+}
+
+function currentList(){ return STATE.phase==='pre' ? STATE.preItems : STATE.postItems; }
+
+function renderQuestion(){
+  const list=currentList(), item=list[STATE.idx], total=list.length;
+  const sents=splitSentences(item.text);
+  app.innerHTML = `
+    <div class="progress"><div></div></div>
+    <div class="muted">Question ${STATE.idx+1} of ${total}</div>
+    <div class="card">
+      ${CONFIG.collectHighlight?`<div class="legend">Optional — tap a sentence to mark it:
+        one tap <b class="ai">AI-like</b>, two taps <b class="hu">human-like</b>, three taps clears.</div>`:''}
+      <div class="passage" id="passage">${sents.map((s,i)=>`<span class="sent" data-i="${i}">${esc(s)}</span> `).join('')}</div>
+      <div class="q">Who wrote this passage?</div>
+      <div class="choices">
+        <div class="choice" data-ans="human" id="c-human">Human</div>
+        <div class="choice" data-ans="ai" id="c-ai">AI</div>
+      </div>
+      <div class="q">How confident are you?</div>
+      <div class="conf" id="conf">${[1,2,3,4,5].map(n=>`<button data-c="${n}">${n}</button>`).join('')}</div>
+      <div class="conf-ends"><span>1 = just guessing</span><span>5 = very sure</span></div>
+      ${categoriesOnThisPhase()?`<label class="blk" style="margin-top:14px">Which of these helped you decide? (optional, choose any)</label>
+        <div class="cats" id="cats">${CATEGORIES.map(c=>`<div class="cat" data-k="${c.key}"><span class="box">&#10003;</span><span>${c.label}</span></div>`).join('')}</div>`:''}
+      ${CONFIG.collectReason?`<label class="blk" style="margin-top:14px">Anything else? (optional)</label>
+        <textarea id="reason" rows="2" placeholder="e.g. a specific word or detail that gave it away…"></textarea>`:''}
+      <div class="err hidden" id="err">Please choose Human/AI and a confidence level.</div>
+      <button class="btn" id="next" disabled>${STATE.idx+1===total?'Finish this set':'Next'}</button>
+    </div>`;
+  setProgress(Math.round(STATE.idx/total*100));
+  const qStart = performance.now();
+  awayQ = 0;   // reset per-question tab-away counter
+
+  const hl={};
+  if(CONFIG.collectHighlight){
+    app.querySelectorAll('.sent').forEach(sp=>{
+      sp.onclick=()=>{ const i=sp.dataset.i, st=((hl[i]||0)+1)%3; if(st===0) delete hl[i]; else hl[i]=st;
+        sp.classList.toggle('ai', st===1); sp.classList.toggle('hu', st===2); };
+    });
+  }
+
+  const cats=new Set();
+  if(categoriesOnThisPhase()){
+    app.querySelectorAll('.cat').forEach(el=>{
+      el.onclick=()=>{ const k=el.dataset.k; if(cats.has(k)){cats.delete(k);el.classList.remove('sel');}
+        else{cats.add(k);el.classList.add('sel');} };
+    });
+  }
+  let ans=null, conf=null;
+  const cH=document.getElementById('c-human'), cA=document.getElementById('c-ai'),
+        nextBtn=document.getElementById('next'), err=document.getElementById('err');
+  const chk=()=> nextBtn.disabled=!(ans&&conf);
+  cH.onclick=()=>{ans='human';cH.classList.add('sel-hu');cA.classList.remove('sel-ai');chk();};
+  cA.onclick=()=>{ans='ai';cA.classList.add('sel-ai');cH.classList.remove('sel-hu');chk();};
+  document.querySelectorAll('#conf button').forEach(b=>{
+    b.onclick=()=>{ conf=+b.dataset.c; document.querySelectorAll('#conf button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); chk(); };
+  });
+  nextBtn.onclick=()=>{
+    if(!(ans&&conf)){ err.classList.remove('hidden'); return; }
+    // record ONLY the opaque token + the participant's answer — no correct label here
+    STATE.responses.push({
+      phase:STATE.phase, token:item.token, presentation_order:item.presentation_order,
+      response:ans, confidence:conf,
+      categories: Array.from(cats),
+      reason: CONFIG.collectReason ? (document.getElementById('reason').value||'') : '',
+      highlights: Object.keys(hl).map(i=>({sentence_index:+i, mark: hl[i]===1?'ai':'human'})),
+      away_count: awayQ,
+      time_ms: Math.round(performance.now()-qStart)
+    });
+    STATE.idx++; save();
+    if(STATE.idx<list.length) renderQuestion();
+    else if(STATE.phase==='pre'){ STATE.phase='curriculum'; STATE.idx=0; save(); screenCurriculum(); }
+    else submitAll();
+  };
+}
+
+function screenCurriculum(){
+  app.innerHTML = `
+    <div class="card">
+      <h2>Part 2 of 3 — Please read this guide</h2>
+      <p class="muted">Read it properly — the next set of questions comes right after.
+         Continue unlocks after a short while.</p>
+      <iframe src="${CONFIG.curriculumPdfUrl}" title="curriculum"></iframe>
+      <button class="btn" id="cont" disabled>Continue (wait…)</button>
+    </div>`;
+  const started=performance.now(); const cont=document.getElementById('cont'); let left=CONFIG.minCurriculumSeconds;
+  const t=setInterval(()=>{ left--; if(left<=0){ clearInterval(t); cont.disabled=false; cont.textContent='Continue'; }
+                            else cont.textContent=`Continue (wait ${left}s)`; },1000);
+  cont.onclick=()=>{ STATE.curriculumMs=(STATE.curriculumMs||0)+Math.round(performance.now()-started);
+                     STATE.phase='post'; STATE.idx=0; save(); screenBlockIntro(); };
+}
+
+/* =========================================================================
+   Submit  (payload carries tokens only; server grades against the key)
+   ========================================================================= */
+function buildPayload(){
+  return {
+    participant_id:STATE.pid, name:STATE.name, email:STATE.email,
+    group:STATE.group, pre_pool:STATE.prePool, post_pool:STATE.postPool,
+    ai_usage:STATE.ai_usage, consent:STATE.consent,
+    curriculum_time_ms:STATE.curriculumMs, user_agent:navigator.userAgent,
+    started_at:STATE.startedAt, submitted_at:new Date().toISOString(),
+    focus_loss_total:STATE.awayTotal||0,
+    responses:STATE.responses
+  };
+}
+function downloadJSON(p){
+  const blob=new Blob([JSON.stringify(p,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`responses_${STATE.pid}.json`; a.click();
+}
+async function submitAll(){
+  const payload=buildPayload();
+  app.innerHTML=`<div class="card"><h2>Submitting…</h2><p class="muted">One moment.</p></div>`;
+  let ok=false;
+  if(CONFIG.endpoint){
+    try{ await fetch(CONFIG.endpoint,{method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)}); ok=true; }
+    catch(e){ ok=false; }
+  }
+  if(ok) clearSaved();
+  screenDone(ok,payload);
+}
+function screenDone(ok,payload){
+  const msg = ok ? "Your responses were submitted successfully. We'll email you about the follow-up test in two weeks."
+                 : "Your responses are saved locally. Please download the file and email it to pavantejasa1@iisc.ac.in";
+  app.innerHTML=`
+    <div class="card">
+      <h2>Thank you!</h2>
+      <p>${msg}</p>
+      <p class="muted">Participant ID: <span class="pid">${STATE.pid}</span> · Group ${STATE.group}</p>
+      <button class="btn secondary" id="dl">Download my responses (JSON)</button>
+    </div>`;
+  document.getElementById('dl').onclick=()=>downloadJSON(payload);
+  if(!ok) downloadJSON(payload);
+}
+
+/* =========================================================================
+   Router + init
+   ========================================================================= */
+function route(){
+  switch(STATE.phase){
+    case 'intake': screenIntake(); break;
+    case 'pre':
+    case 'post':   (STATE.idx===0) ? screenBlockIntro() : renderQuestion(); break;
+    case 'curriculum': screenCurriculum(); break;
+    default: screenIntake();
+  }
+}
+async function init(){
+  attachFocusLogger();
+  const saved = loadSaved();
+  if(saved && saved.phase && saved.phase!=='done'){ screenWelcome(saved); return; }  // resume needs no items
+  try{ ITEMS = await loadItems(); }
+  catch(e){ return screenLoadError(); }
+  STATE = freshState(); save(); screenIntake();
+}
+init();
+</script>
+</body>
+</html>
