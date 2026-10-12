@@ -66,9 +66,9 @@
 const CONFIG = {
   endpoint: "https://script.google.com/macros/s/AKfycbx98kaGqq5OiY3B7y69qA6Ti-3ghbf7akxrg5yeabxn30n-ELtkgLmA-x-TbIEmrsbNXg/exec",                        // Apps Script Web App URL ("" = download-only)
   itemsUrl: "items.json",              // label-free items (built by build_items.py)
-  itemsPerCellPerBlock: 5,             // 5 x 4 cells = 20 per block
+  itemsPerCellPerBlock: 3,             // 5 x 4 cells = 20 per block
   minCurriculumSeconds: 60,
-  curriculumPdfUrl: "curriculum (3).pdf",
+  curriculumPdfUrl: "https://pavaniniisc.github.io/curriculum/",
   collectReason: true,
   collectHighlight: true,
   collectCategories: true,             // structured cue-tagging checkboxes
@@ -236,7 +236,7 @@ function screenBlockIntro(){
   app.innerHTML = `
     <div class="card">
       <h2>${first?'Part 1 of 3 — First set of questions':'Part 3 of 3 — Second set of questions'}</h2>
-      <p>You'll see 20 short passages, one at a time. For each, decide whether it was written by a
+      <p>You'll see 12 short passages, one at a time. For each, decide whether it was written by a
          <b>human</b> or by <b>AI</b>, and how confident you are.</p>
       ${CONFIG.collectHighlight?`<p class="muted">Optionally, tap sentences that feel AI-like or human-like.</p>`:''}
       <p class="muted">You can't go back to a previous question, so answer with your first judgement.</p>
