@@ -66,9 +66,9 @@
 const CONFIG = {
   endpoint: "https://script.google.com/macros/s/AKfycbx98kaGqq5OiY3B7y69qA6Ti-3ghbf7akxrg5yeabxn30n-ELtkgLmA-x-TbIEmrsbNXg/exec",                        // Apps Script Web App URL ("" = download-only)
   itemsUrl: "items.json",              // label-free items (built by build_items.py)
-  itemsPerCellPerBlock: 3,             // 5 x 4 cells = 20 per block
+  itemsPerCellPerBlock: 3,             // 3 x 4 cells = 12 per block
   minCurriculumSeconds: 60,
-  curriculumPdfUrl: "https://pavaniniisc.github.io/curriculum/",
+  curriculumPdfUrl: "curriculum.html",   // curriculum page served from THIS repo (same origin)
   collectReason: true,
   collectHighlight: true,
   collectCategories: true,             // structured cue-tagging checkboxes
@@ -267,9 +267,9 @@ function renderQuestion(){
       <div class="conf-ends"><span>1 = just guessing</span><span>5 = very sure</span></div>
       ${categoriesOnThisPhase()?`<label class="blk" style="margin-top:14px">Which of these helped you decide? (optional, choose any)</label>
         <div class="cats" id="cats">${CATEGORIES.map(c=>`<div class="cat" data-k="${c.key}"><span class="box">&#10003;</span><span>${c.label}</span></div>`).join('')}</div>`:''}
-      ${CONFIG.collectReason?`<label class="blk" style="margin-top:14px">Anything else? (optional)</label>
-        <textarea id="reason" rows="2" placeholder="e.g. a specific word or detail that gave it away…"></textarea>`:''}
-      <div class="err hidden" id="err">Please choose Human/AI and a confidence level.</div>
+      ${CONFIG.collectReason?`<label class="blk" style="margin-top:14px">What made you choose this as AI or human? <span style="color:var(--ai)">*</span></label>
+        <textarea id="reason" rows="2" placeholder="e.g. a specific word, phrase, or detail that led to your choice…"></textarea>`:''}
+      <div class="err hidden" id="err">Please choose Human/AI, a confidence level, and say what made you decide.</div>
       <button class="btn" id="next" disabled>${STATE.idx+1===total?'Finish this set':'Next'}</button>
     </div>`;
   setProgress(Math.round(STATE.idx/total*100));
@@ -294,14 +294,15 @@ function renderQuestion(){
   let ans=null, conf=null;
   const cH=document.getElementById('c-human'), cA=document.getElementById('c-ai'),
         nextBtn=document.getElementById('next'), err=document.getElementById('err');
-  const chk=()=> nextBtn.disabled=!(ans&&conf);
+  const chk=()=> nextBtn.disabled=!(ans && conf && (!CONFIG.collectReason || (((document.getElementById('reason')||{}).value)||'').trim().length>0));
+  { const _r=document.getElementById('reason'); if(_r) _r.addEventListener('input', chk); }
   cH.onclick=()=>{ans='human';cH.classList.add('sel-hu');cA.classList.remove('sel-ai');chk();};
   cA.onclick=()=>{ans='ai';cA.classList.add('sel-ai');cH.classList.remove('sel-hu');chk();};
   document.querySelectorAll('#conf button').forEach(b=>{
     b.onclick=()=>{ conf=+b.dataset.c; document.querySelectorAll('#conf button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); chk(); };
   });
   nextBtn.onclick=()=>{
-    if(!(ans&&conf)){ err.classList.remove('hidden'); return; }
+    if(!(ans&&conf) || (CONFIG.collectReason && !(((document.getElementById('reason')||{}).value)||'').trim())){ err.classList.remove('hidden'); return; }
     // record ONLY the opaque token + the participant's answer — no correct label here
     STATE.responses.push({
       phase:STATE.phase, token:item.token, presentation_order:item.presentation_order,
@@ -321,13 +322,22 @@ function renderQuestion(){
 
 function screenCurriculum(){
   app.innerHTML = `
-    <div class="card">
-      <h2>Part 2 of 3 — Please read this guide</h2>
-      <p class="muted">Read it properly — the next set of questions comes right after.
-         Continue unlocks after a short while.</p>
-      <iframe src="${CONFIG.curriculumPdfUrl}" title="curriculum"></iframe>
-      <button class="btn" id="cont" disabled>Continue (wait…)</button>
+    <div class="card" style="max-width:none;padding:0;border:none;background:transparent;box-shadow:none">
+      <h2 style="padding:0 4px">Part 2 of 3 — Please read this guide</h2>
+      <p class="muted" style="padding:0 4px">Read it properly — the next set of questions comes right after. Continue unlocks after a short while.</p>
+      <iframe id="curr" src="${CONFIG.curriculumPdfUrl}" title="curriculum"
+              style="width:100vw;position:relative;left:50%;transform:translateX(-50%);border:none;display:block"></iframe>
+      <div style="position:sticky;bottom:0;background:var(--bg);padding:14px 0;border-top:1px solid var(--line);text-align:center;z-index:5">
+        <button class="btn" id="cont" disabled>Continue (wait…)</button>
+      </div>
     </div>`;
+  // same-origin: size the iframe to its content so it reads as a normal page (no box, no inner scrollbar)
+  const fr=document.getElementById('curr');
+  function fit(){ try{ const d=fr.contentWindow.document;
+      fr.style.height=Math.max(d.body.scrollHeight,d.documentElement.scrollHeight)+'px'; }catch(e){} }
+  fr.addEventListener('load', ()=>{ fit();
+      try{ new ResizeObserver(fit).observe(fr.contentWindow.document.body); }catch(e){}
+      setInterval(fit,800); });
   const started=performance.now(); const cont=document.getElementById('cont'); let left=CONFIG.minCurriculumSeconds;
   const t=setInterval(()=>{ left--; if(left<=0){ clearInterval(t); cont.disabled=false; cont.textContent='Continue'; }
                             else cont.textContent=`Continue (wait ${left}s)`; },1000);
