@@ -324,12 +324,9 @@ function screenCurriculum(){
   app.innerHTML = `
     <div class="card" style="max-width:none;padding:0;border:none;background:transparent;box-shadow:none">
       <h2 style="padding:0 4px">Part 2 of 3 — Please read this guide</h2>
-      <p class="muted" style="padding:0 4px">Read it properly — the next set of questions comes right after. Continue unlocks after a short while.</p>
+      <p class="muted" style="padding:0 4px">Work through the whole guide — the Continue button is at the very end, and the next set of questions comes right after.</p>
       <iframe id="curr" src="${CONFIG.curriculumPdfUrl}" title="curriculum"
               style="width:100vw;position:relative;left:50%;transform:translateX(-50%);border:none;display:block"></iframe>
-      <div style="position:sticky;bottom:0;background:var(--bg);padding:14px 0;border-top:1px solid var(--line);text-align:center;z-index:5">
-        <button class="btn" id="cont" disabled>Continue (wait…)</button>
-      </div>
     </div>`;
   // same-origin: size the iframe to its content so it reads as a normal page (no box, no inner scrollbar)
   const fr=document.getElementById('curr');
@@ -338,11 +335,21 @@ function screenCurriculum(){
   fr.addEventListener('load', ()=>{ fit();
       try{ new ResizeObserver(fit).observe(fr.contentWindow.document.body); }catch(e){}
       setInterval(fit,800); });
-  const started=performance.now(); const cont=document.getElementById('cont'); let left=CONFIG.minCurriculumSeconds;
-  const t=setInterval(()=>{ left--; if(left<=0){ clearInterval(t); cont.disabled=false; cont.textContent='Continue'; }
-                            else cont.textContent=`Continue (wait ${left}s)`; },1000);
-  cont.onclick=()=>{ STATE.curriculumMs=(STATE.curriculumMs||0)+Math.round(performance.now()-started);
-                     STATE.phase='post'; STATE.idx=0; save(); screenBlockIntro(); };
+  // No timer gate: the participant advances by clicking Continue at the END of the
+  // embedded guide. The iframe is same-origin, so it calls this hook directly; a
+  // postMessage fallback covers any case where the direct call isn't available.
+  const started=performance.now();
+  let advanced=false;
+  function advance(){
+    if(advanced) return; advanced=true;
+    try{ window.__onCurriculumDone=null; }catch(e){}
+    window.removeEventListener('message', onMsg);
+    STATE.curriculumMs=(STATE.curriculumMs||0)+Math.round(performance.now()-started);
+    STATE.phase='post'; STATE.idx=0; save(); screenBlockIntro();
+  }
+  function onMsg(e){ if(e && e.data && e.data.type==='curriculumDone') advance(); }
+  window.__onCurriculumDone=advance;
+  window.addEventListener('message', onMsg);
 }
 
 /* =========================================================================
