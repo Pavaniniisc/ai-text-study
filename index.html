@@ -121,8 +121,9 @@ async function loadItems(){
   return data;
 }
 
-// Draw a balanced block from a pool: group items by opaque cell tag, pick 5 from
-// each cell, excluding any item whose source tag is in `excludeSrc`.
+// Draw a balanced block from a pool: group items by opaque cell tag, pick
+// itemsPerCellPerBlock from each cell, excluding any item whose source tag is in
+// `excludeSrc` (so a source seen in pre — human OR its mirror — can't reappear in post).
 function drawBlock(poolKey, phase, excludeSrc){
   const exclude = excludeSrc || new Set();
   const byCell = {};
@@ -324,7 +325,7 @@ function screenCurriculum(){
   app.innerHTML = `
     <div class="card" style="max-width:none;padding:0;border:none;background:transparent;box-shadow:none">
       <h2 style="padding:0 4px">Part 2 of 3 — Please read this guide</h2>
-      <p class="muted" style="padding:0 4px">Read the Guide Completely. It might take approximately 20-30 minutes to go through the guide.</p>
+      <p class="muted" style="padding:0 4px">Work through the whole guide — the Continue button is at the very end, and the next set of questions comes right after.</p>
       <iframe id="curr" src="${CONFIG.curriculumPdfUrl}" title="curriculum"
               style="width:100vw;position:relative;left:50%;transform:translateX(-50%);border:none;display:block"></iframe>
     </div>`;
@@ -360,7 +361,7 @@ function buildPayload(){
     participant_id:STATE.pid, name:STATE.name, email:STATE.email,
     group:STATE.group, pre_pool:STATE.prePool, post_pool:STATE.postPool,
     ai_usage:STATE.ai_usage, consent:STATE.consent,
-    curriculum_time_ms:STATE.curriculumMs, user_agent:navigator.userAgent,
+    curriculum_time_ms:STATE.curriculumMs,
     started_at:STATE.startedAt, submitted_at:new Date().toISOString(),
     focus_loss_total:STATE.awayTotal||0,
     responses:STATE.responses
