@@ -19,6 +19,8 @@
   .progress > div{height:100%;background:var(--navy);width:0%}
   .passage{font-size:16px;line-height:1.7;border:1px solid var(--line);border-radius:8px;
            padding:14px 16px;background:#fff;margin:6px 0 4px}
+  .passage .para{margin:0 0 .75em}
+  .passage .para:last-child{margin-bottom:0}
   .sent{cursor:pointer;border-radius:3px;padding:0 1px;transition:background .1s}
   .sent.ai{background:var(--aibg);box-shadow:inset 0 -2px 0 var(--ai)}
   .sent.hu{background:var(--hubg);box-shadow:inset 0 -2px 0 var(--hu)}
@@ -250,14 +252,20 @@ function currentList(){ return STATE.phase==='pre' ? STATE.preItems : STATE.post
 
 function renderQuestion(){
   const list=currentList(), item=list[STATE.idx], total=list.length;
-  const sents=splitSentences(item.text);
+  // preserve paragraph breaks: split the passage on newlines into paragraphs, then
+  // sentence-span within each (one continuous data-i index across the whole passage
+  // so highlighting still works).
+  let _si=0;
+  const passageHTML = String(item.text).split(/\n+/).map(p=>p.trim()).filter(Boolean)
+    .map(p=>`<p class="para">${splitSentences(p).map(s=>`<span class="sent" data-i="${_si++}">${esc(s)}</span> `).join('')}</p>`)
+    .join('');
   app.innerHTML = `
     <div class="progress"><div></div></div>
     <div class="muted">Question ${STATE.idx+1} of ${total}</div>
     <div class="card">
       ${CONFIG.collectHighlight?`<div class="legend">Optionally you can tap a sentence to mark it:
         one tap <b class="ai">AI-like</b>, two taps <b class="hu">human-like</b>, three taps clears.</div>`:''}
-      <div class="passage" id="passage">${sents.map((s,i)=>`<span class="sent" data-i="${i}">${esc(s)}</span> `).join('')}</div>
+      <div class="passage" id="passage">${passageHTML}</div>
       <div class="q">Who wrote this passage?</div>
       <div class="choices">
         <div class="choice" data-ans="human" id="c-human">Human</div>
