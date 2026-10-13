@@ -687,14 +687,24 @@ function renderDone(){
   </div>`;
   actionbar.hidden=false;
   backBtn.disabled=false;backBtn.textContent="Back";
-  nextBtn.textContent="Start over";nextBtn.disabled=false;
+  nextBtn.textContent=EMBEDDED?"Continue":"Start over";nextBtn.disabled=false;
   setProgress();save();
 }
+
+/* embedded in the study as a same-origin iframe? then the end-of-guide button
+   advances the study instead of restarting the guide */
+const EMBEDDED=(()=>{try{return window.parent && window.parent!==window;}catch(e){return false;}})();
 
 /* nav */
 nextBtn.addEventListener("click",()=>{
   if(phase==="intro"){phase="cue";renderCue();window.scrollTo({top:0,behavior:"smooth"});return;}
-  if(phase==="done"){solved.clear();idx=0;renderIntro();window.scrollTo({top:0});return;}
+  if(phase==="done"){
+    if(EMBEDDED){ try{ if(window.parent && window.parent.__onCurriculumDone){ window.parent.__onCurriculumDone(); }
+                       else { window.parent.postMessage({type:"curriculumDone"},"*"); } }
+                 catch(e){ try{ window.parent.postMessage({type:"curriculumDone"},"*"); }catch(_){} }
+      return; }
+    solved.clear();idx=0;renderIntro();window.scrollTo({top:0});return;
+  }
   if(!solved.has(idx))return;
   if(idx===TOTAL-1){renderDone();window.scrollTo({top:0,behavior:"smooth"});}
   else{idx++;renderCue();window.scrollTo({top:0,behavior:"smooth"});}
