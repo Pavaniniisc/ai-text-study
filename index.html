@@ -411,18 +411,29 @@ function downloadJSON(p){
 async function submitAll(){
   const payload=buildPayload();
   app.innerHTML=`<div class="card"><h2>Submitting…</h2><p class="muted">One moment.</p></div>`;
-  let ok=false;
+  let ok=false, confirmed=false;
   if(CONFIG.endpoint){
-    try{ await fetch(CONFIG.endpoint,{method:'POST',
-          headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)}); ok=true; }
-    catch(e){ ok=false; }
+    try{
+      const res = await fetch(CONFIG.endpoint,{method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+      ok = res.ok;                           // transport-level 2xx
+      try{
+        const body = await res.json();       // may throw if body isn't readable cross-origin
+        confirmed = !!(body && body.ok === true);
+        if(body && body.ok === false) ok = false;   // server reported an error
+      }catch(_){ /* body unreadable: stay unconfirmed, keep the backup */ }
+    }catch(e){ ok=false; }
   }
-  if(ok) clearSaved();
-  screenDone(ok,payload);
+  if(confirmed) clearSaved();                 // ONLY wipe local copy on a server-confirmed save
+  screenDone(ok, payload, confirmed);
 }
-function screenDone(ok,payload){
-  const msg = ok ? "Your responses were submitted successfully. We'll email you about the follow-up test in two weeks."
-                 : "Your responses are saved locally. Please download the file and email it to pavantejasa1@iisc.ac.in";
+
+function screenDone(ok, payload, confirmed){
+  const msg = confirmed
+    ? "Your responses were submitted and saved. We'll email you about the follow-up test in two weeks."
+    : (ok
+       ? "Your responses were sent. You can download your responses."
+       : "We couldn't confirm your responses were saved. Please download the file below and email it to pavantejasa1@iisc.ac.in");
   app.innerHTML=`
     <div class="card">
       <h2>Thank you!</h2>
@@ -431,7 +442,7 @@ function screenDone(ok,payload){
       <button class="btn secondary" id="dl">Download my responses (JSON)</button>
     </div>`;
   document.getElementById('dl').onclick=()=>downloadJSON(payload);
-  if(!ok) downloadJSON(payload);
+  if(!confirmed) downloadJSON(payload);       // auto-download whenever not server-confirmed
 }
 
 /* =========================================================================
