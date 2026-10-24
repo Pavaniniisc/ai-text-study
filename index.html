@@ -114,12 +114,18 @@ document.addEventListener('contextmenu', e=>{
 const params = new URLSearchParams(location.search);
 let ITEMS = null;
 let awayQ = 0;              // times the tab was hidden during the CURRENT question
+let qHiddenMs = 0, qHiddenAt = null;   // total hidden time (ms) during the current question
 let focusListenerAttached = false;
 function attachFocusLogger(){
   if(focusListenerAttached || !CONFIG.logFocusLoss) return;
   focusListenerAttached = true;
   document.addEventListener('visibilitychange', ()=>{
-    if(document.hidden){ awayQ++; if(STATE){ STATE.awayTotal=(STATE.awayTotal||0)+1; save(); } }
+    if(document.hidden){
+      awayQ++; qHiddenAt = performance.now();
+      if(STATE){ STATE.awayTotal=(STATE.awayTotal||0)+1; save(); }
+    } else if(qHiddenAt != null){
+      qHiddenMs += performance.now() - qHiddenAt; qHiddenAt = null;
+    }
   });
 }
 
@@ -326,6 +332,7 @@ function renderQuestion(){
   setProgress(Math.round(STATE.idx/total*100));
   const qStart = performance.now();
   awayQ = 0;   // reset per-question tab-away counter
+  qHiddenMs = 0; qHiddenAt = null;   // reset per-question away counter + timer
 
   const hl={};
   if(CONFIG.collectHighlight){
@@ -362,6 +369,7 @@ function renderQuestion(){
       reason: CONFIG.collectReason ? (document.getElementById('reason').value||'') : '',
       highlights: Object.keys(hl).map(i=>({sentence_index:+i, mark: hl[i]===1?'ai':'human'})),
       away_count: awayQ,
+      awaytime_ms: Math.round(qHiddenMs + (qHiddenAt != null ? performance.now()-qHiddenAt : 0)),
       time_ms: Math.round(performance.now()-qStart)
     });
     STATE.idx++; save();
