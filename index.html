@@ -18,7 +18,8 @@
   .progress{height:6px;background:#e6e8ec;border-radius:4px;overflow:hidden;margin:0 0 14px}
   .progress > div{height:100%;background:var(--navy);width:0%}
   .passage{font-size:16px;line-height:1.7;border:1px solid var(--line);border-radius:8px;
-           padding:14px 16px;background:#fff;margin:6px 0 4px}
+         padding:14px 16px;background:#fff;margin:6px 0 4px;
+         -webkit-user-select:none;-ms-user-select:none;user-select:none;}
   .passage .para{margin:0 0 .75em}
   .passage .para:last-child{margin-bottom:0}
   .sent{cursor:pointer;border-radius:3px;padding:0 1px;transition:background .1s}
@@ -73,7 +74,7 @@ const CONFIG = {
   curriculumPdfUrl: "curriculum.html",   // curriculum page served from THIS repo (same origin)
   collectReason: true,
   collectHighlight: true,
-  collectCategories: true,             // structured cue-tagging checkboxes
+  collectCategories: false,             // structured cue-tagging checkboxes
   categoriesPhase: "post",             // "post" (default), "pre", or "both"
   logFocusLoss: true,                  // count when a participant leaves the test tab
   storageKey: "aitext_study_v3"
@@ -97,6 +98,19 @@ function categoriesOnThisPhase(){
    where each item = { token, cell, src, text }  — NO labels/answers.
    ========================================================================= */
 const app = document.getElementById('app');
+// Stop participants copying the passage text (e.g. to paste into an AI detector).
+// Copying is blocked everywhere EXCEPT inside a text field, so they can still work
+// in the "reason" box and the intake inputs.
+['copy','cut'].forEach(evt=>{
+  document.addEventListener(evt, e=>{
+    const t=document.activeElement;
+    const inField = t && (t.tagName==='TEXTAREA' || t.tagName==='INPUT');
+    if(!inField) e.preventDefault();
+  });
+});
+document.addEventListener('contextmenu', e=>{
+  if(e.target.closest && e.target.closest('#passage')) e.preventDefault();
+});
 const params = new URLSearchParams(location.search);
 let ITEMS = null;
 let awayQ = 0;              // times the tab was hidden during the CURRENT question
@@ -291,12 +305,12 @@ function renderQuestion(){
       ${CONFIG.collectHighlight?`<div class="legend">Optionally you can tap a sentence to mark it:
         one tap <b class="ai">AI-like</b>, two taps <b class="hu">human-like</b>, three taps clears.</div>`:''}
       <div class="passage" id="passage">${passageHTML}</div>
-      <div class="q">Who wrote this passage?</div>
+      <div class="q">Who wrote this passage? <span style="color:var(--ai)">*</span></div>
       <div class="choices">
         <div class="choice" data-ans="human" id="c-human">Human</div>
         <div class="choice" data-ans="ai" id="c-ai">AI</div>
       </div>
-      <div class="q">How confident are you?</div>
+      <div class="q">How confident are you? <span style="color:var(--ai)">*</span></div>
       <div class="conf" id="conf">${[1,2,3,4,5].map(n=>`<button data-c="${n}">${n}</button>`).join('')}</div>
       <div class="conf-ends"><span>1 = just guessing</span><span>5 = very sure</span></div>
       ${categoriesOnThisPhase()?`<label class="blk" style="margin-top:14px">Which of these helped you decide? (optional, choose any)</label>
