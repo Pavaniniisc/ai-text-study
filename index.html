@@ -173,7 +173,7 @@ function freshState(){
   const postItems = drawBlock(postPool,'post', usedSrc);
   return {
     pid: params.get('pid') || ('P'+Math.random().toString(36).slice(2,8).toUpperCase()),
-    name:'', email:'', ai_usage:null, age:null, edu:null, attitude:null, consent:false,
+    name:'', email:'', ai_usage:null, age:null, edu:null, attitude:null, gender:null, consent:false,
     group, prePool, postPool, preItems, postItems,
     phase:'intake', idx:0, responses:[],
     curriculumMs:0, startedAt:new Date().toISOString()
@@ -241,6 +241,12 @@ function screenIntake(){
         <option>18–24</option><option>25–34</option><option>35–44</option>
         <option>45–54</option><option>55–64</option><option>65+</option>
       </select>
+      <label class="blk" style="margin-top:14px">Gender</label>
+      <select id="gender">
+        <option value="">— select —</option>
+        <option>Female</option><option>Male</option><option>Non-binary</option>
+        <option>Prefer not to disclose</option>
+      </select>
       <label class="blk" style="margin-top:14px">Highest level of education</label>
       <select id="edu">
         <option value="">— select —</option>
@@ -271,14 +277,16 @@ function screenIntake(){
   const name=document.getElementById('name'), email=document.getElementById('email'),
         usage=document.getElementById('usage'), age=document.getElementById('age'),
         edu=document.getElementById('edu'), attitude=document.getElementById('attitude'),
+        gender=document.getElementById('gender'),
         consent=document.getElementById('consent'), go=document.getElementById('go');
   const okEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   function chk(){ go.disabled = !(name.value.trim() && okEmail(email.value.trim()) &&
-        usage.value && age.value && edu.value && attitude.value && consent.checked); }
-  [name,email,usage,age,edu,attitude,consent].forEach(el=>{ el.oninput=chk; el.onchange=chk; });
+        usage.value && age.value && edu.value && attitude.value && gender.value && consent.checked); }
+  [name,email,usage,age,edu,attitude,gender,consent].forEach(el=>{ el.oninput=chk; el.onchange=chk; });
   go.onclick=()=>{ STATE.name=name.value.trim(); STATE.email=email.value.trim();
                    STATE.ai_usage=usage.value; STATE.age=age.value; STATE.edu=edu.value;
-                   STATE.attitude=attitude.value; STATE.consent=true; STATE.phase='pre'; STATE.idx=0;
+                   STATE.attitude=attitude.value; STATE.gender=gender.value;
+                   STATE.consent=true; STATE.phase='pre'; STATE.idx=0;
                    save(); screenBlockIntro(); };
 }
 
@@ -407,6 +415,7 @@ function buildPayload(){
     participant_id:STATE.pid, name:STATE.name, email:STATE.email,
     group:STATE.group, pre_pool:STATE.prePool, post_pool:STATE.postPool,
     ai_usage:STATE.ai_usage, age:STATE.age, education:STATE.edu, ai_attitude:STATE.attitude,
+    gender:STATE.gender,
     consent:STATE.consent,
     curriculum_time_ms:STATE.curriculumMs,
     started_at:STATE.startedAt, submitted_at:new Date().toISOString(),
