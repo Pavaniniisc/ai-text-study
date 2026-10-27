@@ -652,6 +652,8 @@ function wireQuestion(c,done){
 
 function renderIntro(){
   phase="intro";
+  const resumable=solved.size>0;
+  const cta=resumable?"Resume":"Start the guide";
   stage.innerHTML=`<div class="card hero">
     <div class="eyebrow">Part 2 of 3: A short training on spotting AI-written text</div>
 
@@ -664,12 +666,15 @@ function renderIntro(){
       some statistics, and a small question at the end. You can proceed to the next sign
       once you answer the question correctly.
     </p>
+
+    <button class="btn primary" id="introStart" style="margin-top:20px">${cta}</button>
   </div>`;
   actionbar.hidden=false;
   backBtn.disabled=true;
-  const resumable=solved.size>0;
-  nextBtn.textContent=resumable?"Resume":"Start the guide";
+  nextBtn.textContent=cta;
   nextBtn.disabled=false;
+  const introBtn=document.getElementById('introStart');
+  if(introBtn) introBtn.onclick=()=>nextBtn.click();   // same action as the bottom bar
   setProgress();save();
 }
 
